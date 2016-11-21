@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.5.0'
+__version__ = '0.5.3'
 
 __line_size = 0
 
@@ -68,6 +68,8 @@ def main():
 
 		if not exists(args.pkg_dir):
 			os.mkdir(args.pkg_dir)
+		if not exists(args.cache_dir):
+			os.mkdir(args.cache_dir)
 
 		TREE = "|   "
 		def tree(lvl, newLine=False, *args):
@@ -100,10 +102,12 @@ def main():
 				excludes = ["test/", "doc/"]
 				if not args.allow_node_modules:
 					excludes.append("node_modules/")
-				if args.no_cache:
-					cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "npm/4.0.3 node/v7.1.0 linux x64" -sL %s > %s &&' % (url, tmp_file)
-					cmd += "mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null && rm -f %s" % (
-						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes), tmp_file)
+				if not exists(tmp_file):
+					cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "npm/4.0.3 node/v7.1.0 linux x64" -sL %s > %s' % (url, tmp_file)
+					cmd += " && mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null" % (
+						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes))
+					if args.no_cache:
+						cmd += " && rm -f %s" % tmp_file
 				else:
 					cmd = "mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null" % (
 						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes))
