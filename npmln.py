@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.4.6'
+__version__ = '0.5.0'
 
 __line_size = 0
 
@@ -28,6 +28,9 @@ def main():
 	parser.add_argument("-j", type=int, default=64, help="number of threads (%(default)s)")
 	parser.add_argument("--reinstall", action="store_true", default=False, help="reinstall specified module(s) regardless of link exists (%(default)s)")
 	parser.add_argument("--allow-node-modules", action="store_true", default=False, help="allow node_modules folder to be included in package (%(default)s)")
+
+	parser.add_argument("--no-cache", action="store_true", default=False, help="no cache for downloaded tarballs (%(default)s)")
+	parser.add_argument("--cache-dir", default="/var/tmp/npmln-cache", help="cache folder for tarballs (%(default)s)")
 
 	parser.add_argument("-v", action="version", version="npmln (version %s)" % __version__)
 
@@ -91,15 +94,19 @@ def main():
 		# directly download package
 		def load_url(url, pkg_path, mod, ver):
 			if url.endswith((".tar.gz", ".tgz")):
-				tmp_file = "%s/%s-%s.tgz" % (args.tmp_dir, mod, ver)
+				tmp_file = "%s/%s-%s.tgz" % (args.tmp_dir if args.no_cache else args.cache_dir, mod, ver)
 				if tmp_file in downloaded:
 					return
 				excludes = ["test/", "doc/"]
 				if not args.allow_node_modules:
 					excludes.append("node_modules/")
-				cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "npm/4.0.3 node/v7.1.0 linux x64" -sL %s > %s' % (url, tmp_file)
-				cmd += "&& mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null && rm -f %s" % (
-					pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes), tmp_file)
+				if args.no_cache:
+					cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "npm/4.0.3 node/v7.1.0 linux x64" -sL %s > %s &&' % (url, tmp_file)
+					cmd += "mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null && rm -f %s" % (
+						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes), tmp_file)
+				else:
+					cmd = "mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null" % (
+						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes))
 				downloaded.add(tmp_file)
 
 				for i in range(1, args.retries + 1):
