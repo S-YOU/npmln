@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.5.3'
+__version__ = '0.5.9'
 
 __line_size = 0
 
@@ -103,13 +103,15 @@ def main():
 				if not args.allow_node_modules:
 					excludes.append("node_modules/")
 				if not exists(tmp_file):
+					print "downloading", [mod, ver, pkg_path, tmp_file]
 					cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "npm/4.0.3 node/v7.1.0 linux x64" -sL %s > %s' % (url, tmp_file)
-					cmd += " && mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null" % (
+					cmd += " && mkdir -p %s && tar zxf %s -C %s --strip-components 1 --warning=no-unknown-keyword %s" % (
 						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes))
 					if args.no_cache:
 						cmd += " && rm -f %s" % tmp_file
 				else:
-					cmd = "mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s 2>/dev/null" % (
+					#print "cache:", [mod, ver, pkg_path, tmp_file]
+					cmd = "mkdir -p %s && tar zxf %s -C %s --strip-components 1 --warning=no-unknown-keyword %s" % (
 						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes))
 				downloaded.add(tmp_file)
 
@@ -166,7 +168,7 @@ def main():
 				if pkg_json and "dist" in pkg_json and "tarball" in pkg_json["dist"]:
 					real_ver = pkg_json["version"]
 					new_pkg_path = join(mod_base, real_ver)
-					tarball_path = pkg_json["dist"]["tarball"]
+					tarball_path = pkg_json["dist"]["tarball"].replace("http://registry.npmjs.org/", "https://registry.yarnpkg.com/")
 					if uniq_modules.get(pair) is None:
 						uniq_modules[pair] = new_pkg_path
 				else:
@@ -175,7 +177,7 @@ def main():
 				# errwrite(new_pkg_path, pkg_json["dist"]["tarball"])
 			#print new_pkg_path
 
-			print "npmpull", [mod, ver_pattern, mod_base, lvl, prev_path]
+			#print "npmpull", [mod, ver_pattern, mod_base, lvl, prev_path]
 			is_new = not exists(new_pkg_path) or (cmdn and args.reinstall)
 			real_pair = mod, real_ver
 			if is_new:
@@ -401,7 +403,7 @@ def main():
 					npm_pull(*downloads.pop())
 
 			import threading
-			errwrite("INFO:downloading and installing new modules")
+			errwrite("INFO:downloading and extracting new modules")
 			while downloads:
 				workers = []
 				for _ in range(args.j):
@@ -411,6 +413,7 @@ def main():
 					if not downloads: break
 				for worker in workers:
 					worker.join()
+			errwrite("INFO:done downloading")
 
 			# relinks all sub packages
 			errwrite("INFO:relinking modules")
@@ -423,6 +426,7 @@ def main():
 						# errwrite(uniq_modules[pair], sub_pkg_path, lvl)
 					else:
 						errwrite("ERR:relink:", pair, uniq_modules[pair], sub_pkg_path, lvl)
+			errwrite("INFO:done relinking")
 
 			# rebuild all native modules
 			errwrite("INFO:running scripts")
@@ -443,6 +447,7 @@ def main():
 					if not builds: break
 				for worker in workers:
 					worker.join()
+			errwrite("INFO:done running scripts")
 
 			# bin links
 			if not args.g:
