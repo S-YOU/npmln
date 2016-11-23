@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.5.9'
+__version__ = '0.5.12'
 
 __line_size = 0
 
@@ -31,6 +31,7 @@ def main():
 
 	parser.add_argument("--no-cache", action="store_true", default=False, help="no cache for downloaded tarballs (%(default)s)")
 	parser.add_argument("--cache-dir", default="/var/tmp/npmln-cache", help="cache folder for tarballs (%(default)s)")
+	parser.add_argument("--dump", action="store_true", default=False, help="create list of install files (%(default)s)")
 
 	parser.add_argument("-v", action="version", version="npmln (version %s)" % __version__)
 
@@ -46,7 +47,7 @@ def main():
 	import os
 	import cjson
 
-	listdir, isdir, islink, join, exists, realpath = os.listdir, os.path.isdir, os.path.islink, os.path.join, os.path.exists, os.path.realpath
+	listdir, isdir, islink, join, exists, realpath, relpath = os.listdir, os.path.isdir, os.path.islink, os.path.join, os.path.exists, os.path.realpath, os.path.relpath
 	downloaded = set()
 
 	def errwrite(*arg):
@@ -269,7 +270,7 @@ def main():
 		walked = {}
 		counter = [0, 0]  # all, installed
 
-		def install_recur(fpath, lvl, prev_path, devDeps=False, drawTree=False):
+		def install_recur(fpath, lvl, prev_path, devDeps=False, flags=0):
 			if islink(fpath) and exists(fpath):
 				return
 
@@ -305,7 +306,7 @@ def main():
 				# print fpath, "\tno deps"
 				return
 
-			if drawTree:
+			if flags & 1:
 				if lvl == 0:
 					# print "\t" * lvl, fpath, pkgs
 					errwrite(" " + pkg_json["name"])
@@ -340,7 +341,7 @@ def main():
 
 				sub_pkg_path = join(pkg_nm_path, k)
 				if pair in walked:
-					tree(lvl, drawTree, ("" if drawTree else "%d/%d:" % (counter[1], counter[0])), "%s/%s (%s) *" % (
+					tree(lvl, flags & 1, ("" if flags & 1 else "%d/%d:" % (counter[1], counter[0])), "%s/%s (%s) *" % (
 						k, walked[pair].rsplit("/", 1)[-1], v))
 					relink(walked[pair], sub_pkg_path, lvl)
 					continue
@@ -385,12 +386,12 @@ def main():
 
 					if vpath and exists(vpath):
 						counter[0] += 1
-						tree(lvl, drawTree, ("" if drawTree else "%d/%d:" % (counter[1], counter[0])), "%s/%s (%s)" % (
+						tree(lvl, flags & 1, ("" if flags & 1 else "%d/%d:" % (counter[1], counter[0])), "%s/%s (%s)" % (
 							k, vpath.rsplit("/", 1)[-1], v))
 						relinked = relink(vpath, sub_pkg_path, lvl)
 						walked[pair] = vpath
-						if relinked or args.reinstall:
-							install_recur(vpath, lvl, fpath, False, drawTree)
+						if relinked or args.reinstall or flags & 2:
+							install_recur(vpath, lvl, fpath, False, flags)
 						counter[1] += 1
 					else:
 						errwrite("\t" * lvl, "module: %s (%s), version: %s not found, path: %s, %r, %r" % (k, mod_base, v, vpath, ver, vers))
@@ -505,8 +506,16 @@ def main():
 
 			# clear the line
 			sys.stdout.write("\r" + " " * __line_size + "\r")
+
 			# walk again to print tree, not needed for functionality
-			install_recur(args.base, 0, args.base, args.dev, True)
+			install_recur(args.base, 0, args.base, args.dev, 1)
+
+			if args.dump:
+				walked.clear()
+				install_recur(args.base, 0, args.base, args.dev, 2)
+				with open(join(args.base, 'npmln.list'), 'wb') as dst:
+					dst.write('\n'.join(sorted(relpath(x, args.pkg_dir) for x in set(walked.values()))))
+
 	else:
 		parser.print_help()
 		print "Unknown command '%s'" % cmd0
