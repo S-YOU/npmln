@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.5.12'
+__version__ = '0.6.0'
 
 __line_size = 0
 
@@ -199,17 +199,6 @@ def main():
 							rebuilds[real_pair][1].append("install")
 						if "postinstall" in pkg_scripts:
 							rebuilds[real_pair][1].append("postinstall")
-
-			# print pkg_json["bin"], [new_pkg_path, prev_path]
-			# link bin scripts
-			if "bin" in pkg_json and new_pkg_path != prev_path:
-				if new_pkg_path not in bin_links:
-					bin_links[new_pkg_path] = []
-				if type(pkg_json["bin"]) == dict:
-					for kk, vv in pkg_json["bin"].iteritems():
-						bin_links[new_pkg_path].append((prev_path, pkg_json["name"], kk, vv.replace("./", "")))
-				elif type(pkg_json["bin"]) == str:
-					bin_links[new_pkg_path].append((prev_path, pkg_json["name"], pkg_json["name"], pkg_json["bin"].replace("./", "")))
 
 			# add to relink submodules, or when running directly
 			if not pair in relinks:
@@ -416,6 +405,11 @@ def main():
 					worker.join()
 			errwrite("INFO:done downloading")
 
+			if not args.g:
+				nm_path = join(args.base, 'node_modules')
+				if not exists(nm_path):
+					os.mkdir(nm_path)
+
 			# relinks all sub packages
 			errwrite("INFO:relinking modules")
 			for pair, v in relinks.iteritems():
@@ -450,22 +444,39 @@ def main():
 					worker.join()
 			errwrite("INFO:done running scripts")
 
-			# bin links
-			if not args.g:
-				errwrite("INFO:link bin scripts")
-				for _mod_path, items in bin_links.iteritems():
-					for prev_path, mod_name, bin_name, src_rel in items:
-						src_path = join('..', mod_name, src_rel)
-						bin_base = join(prev_path, "node_modules", ".bin")
-						if not exists(bin_base):
-							os.makedirs(bin_base)
-						bin_path = join(bin_base, bin_name)
-						# print "bin link: prev_path %s, mod_path: %s: bin_base: %s, other: %r, src_path: %s, bin_path: %s" % (prev_path, _mod_path, bin_base, (mod_name, bin_name, src_rel), src_path, bin_path)
+		def mk_binlinks(pkg_file, bin_base, mod_path=None):
+			if not exists(pkg_file): print "404", pkg_file; return
+			with open(pkg_file, "rb") as src:
+				pkg_json = cjson.decode(src.read())
+				if not pkg_json or "bin" not in pkg_json: return
+				if type(pkg_json["bin"]) is str:
+					bin_obj = {pkg_json["name"]: pkg_json["bin"]}
+				else:
+					bin_obj = pkg_json["bin"]
+				for bin_name, fpath in bin_obj.iteritems():
+					bin_path = join(bin_base, name)
+					if mod_path:
+						src_path = join(mod_path, fpath.replace("./", ""))
+						print bin_path, src_path
+						if not exists(bin_path) or args.reinstall:
+							subprocess.call((sudo + "ln -snf '{0}' '{1}' && " + sudo + "chmod +x '{0}'").format(src_path, bin_path), shell=True)
+					else:
+						src_path = join('..', name, fpath.replace("./", ""))
+						print bin_path, src_path
 						if islink(bin_path) and not realpath(bin_path).endswith(src_path):
 							os.unlink(bin_path)
 						if not exists(bin_path):
 							os.symlink(src_path, bin_path)
 							os.chmod(bin_path, 0o755)
+
+		if not args.g:
+			root_pkg_file = join(args.base, 'package.json')
+			nm_path = join(args.base, "node_modules")
+			if not exists(nm_path):
+				os.mkdir(nm_path)
+			bin_base = join(nm_path, ".bin")
+			if not exists(bin_base):
+				os.mkdir(bin_base)
 
 		if cmdn:
 			# install specific modules
@@ -476,36 +487,55 @@ def main():
 				npm_pull(mod_m, mod_v, join(args.pkg_dir, mod_m), 0, args.base)
 				finalize()
 
-				# bin links global module
-				pair = mod_m, mod_v
-				if pair in uniq_modules:
-					mod_g = uniq_modules[pair]
+				if args.g:
+					print uniq_modules
+					#{('bower', '*'): '/var/tmp/npmln/bower/1.8.0'}
+					for (name, ver), mod_path in uniq_modules.iteritems():
+						pkg_file = join(mod_path, 'package.json')
+						mk_binlinks(pkg_file, join(args.prefix, 'bin'), mod_path)
+				else:
+					mk_binlinks(root_pkg_file, bin_base)
 
-					if args.g:
-						for mod_path, items in bin_links.iteritems():
-							for prev_path, mod_name, bin_name, src_rel in items:
-								if mod_path == mod_g:
-									src_path = join(mod_path, src_rel)
-									bin_path = join(args.prefix, "bin", bin_name)
-									# print "global", src_path, bin_path
-									if not exists(bin_path) or args.reinstall:
-										subprocess.call((sudo + "ln -snf '{0}' '{1}' && " + sudo + "chmod +x '{0}'").format(src_path, bin_path), shell=True)
-									# break
-					else:
-						nm_path = join(args.base, "node_modules")
-						if not exists(nm_path):
-							os.mkdir(nm_path)
-						nm_pkg_path = join(nm_path, mod_m)
-						print mod_g, nm_pkg_path, mod_m, args.base
-						if not exists(nm_pkg_path):
-							os.symlink(mod_g, nm_pkg_path)
-				# print "uniq", uniq_modules[(mod_m, mod_v)]
+				# bin links global module
+				#pair = mod_m, mod_v
+				#if pair in uniq_modules:
+				#	mod_g = uniq_modules[pair]
+
+				#	if args.g:
+				#		for mod_path, items in bin_links.iteritems():
+				#			for prev_path, mod_name, bin_name, src_rel in items:
+				#				if mod_path == mod_g:
+				#					src_path = join(mod_path, src_rel)
+				#					bin_path = join(args.prefix, "bin", bin_name)
+				#					# print "global", src_path, bin_path
+				#					if not exists(bin_path) or args.reinstall:
+				#						subprocess.call((sudo + "ln -snf '{0}' '{1}' && " + sudo + "chmod +x '{0}'").format(src_path, bin_path), shell=True)
+				#					# break
+				#	else:
+				#		nm_pkg_path = join(nm_path, mod_m)
+				#		print mod_g, nm_pkg_path, mod_m, args.base
+				#		if not exists(nm_pkg_path):
+				#			os.symlink(mod_g, nm_pkg_path)
+				## print "uniq", uniq_modules[(mod_m, mod_v)]
 		else:
 			install_recur(args.base, 0, args.base, args.dev)
 			finalize()
 
 			# clear the line
 			sys.stdout.write("\r" + " " * __line_size + "\r")
+
+			#make bin links
+			with open(root_pkg_file, "rb") as root_src:
+				root_pkg_json = cjson.decode(root_src.read())
+				if root_pkg_json:
+					pkgs = {}
+					if not args.no_prod:
+						pkgs.update(root_pkg_json.get('dependencies', {}))
+					if args.dev:
+						pkgs.update(root_pkg_json.get('devDependencies', {}))
+					for name, v in pkgs.iteritems():
+						pkg_file = join('node_modules', name, 'package.json')
+						mk_binlinks(pkg_file, bin_base)
 
 			# walk again to print tree, not needed for functionality
 			install_recur(args.base, 0, args.base, args.dev, 1)
@@ -522,3 +552,4 @@ def main():
 
 if __name__ == '__main__':
 	main()
+
