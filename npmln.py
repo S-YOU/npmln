@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.6.0'
+__version__ = '0.6.1'
 
 __line_size = 0
 
@@ -33,6 +33,7 @@ def main():
 	parser.add_argument("--cache-dir", default="/var/tmp/npmln-cache", help="cache folder for tarballs (%(default)s)")
 	parser.add_argument("--dump", action="store_true", default=False, help="create list of install files (%(default)s)")
 
+	parser.add_argument("-q", action="store_true", default=False, help="quiet (%(default)s)")
 	parser.add_argument("-v", action="version", version="npmln (version %s)" % __version__)
 
 	# parser.print_help()
@@ -52,6 +53,7 @@ def main():
 
 	def errwrite(*arg):
 		global __line_size
+		if args.q: return
 		line = ' '.join(str(x) for x in arg)
 		_len = len(line)
 		if len(line) < __line_size:
@@ -73,8 +75,9 @@ def main():
 			os.mkdir(args.cache_dir)
 
 		TREE = "|   "
-		def tree(lvl, newLine=False, *args):
+		def tree(lvl, newLine=False, *arg):
 			global __line_size
+			if args.q: return
 			line = ""
 			if not newLine:
 				line += "\r"
@@ -83,7 +86,7 @@ def main():
 			if lvl > 0:
 				line += TREE * (lvl - 1)
 				line += "`---"
-			line += ' '.join(str(x) for x in args)
+			line += ' '.join(str(x) for x in arg)
 			if not newLine:
 				_len = len(line)
 				if len(line) < __line_size:
@@ -454,15 +457,13 @@ def main():
 				else:
 					bin_obj = pkg_json["bin"]
 				for bin_name, fpath in bin_obj.iteritems():
-					bin_path = join(bin_base, name)
+					bin_path = join(bin_base, bin_name)
 					if mod_path:
 						src_path = join(mod_path, fpath.replace("./", ""))
-						print bin_path, src_path
 						if not exists(bin_path) or args.reinstall:
 							subprocess.call((sudo + "ln -snf '{0}' '{1}' && " + sudo + "chmod +x '{0}'").format(src_path, bin_path), shell=True)
 					else:
 						src_path = join('..', name, fpath.replace("./", ""))
-						print bin_path, src_path
 						if islink(bin_path) and not realpath(bin_path).endswith(src_path):
 							os.unlink(bin_path)
 						if not exists(bin_path):
@@ -479,7 +480,6 @@ def main():
 				os.mkdir(bin_base)
 
 		if cmdn:
-			# install specific modules
 			for cmd in cmdn:
 				mod_m, mod_v = cmd.split("@", 1) if "@" in cmd else (cmd, "*")
 
@@ -488,43 +488,20 @@ def main():
 				finalize()
 
 				if args.g:
-					print uniq_modules
-					#{('bower', '*'): '/var/tmp/npmln/bower/1.8.0'}
 					for (name, ver), mod_path in uniq_modules.iteritems():
 						pkg_file = join(mod_path, 'package.json')
 						mk_binlinks(pkg_file, join(args.prefix, 'bin'), mod_path)
 				else:
 					mk_binlinks(root_pkg_file, bin_base)
-
-				# bin links global module
-				#pair = mod_m, mod_v
-				#if pair in uniq_modules:
-				#	mod_g = uniq_modules[pair]
-
-				#	if args.g:
-				#		for mod_path, items in bin_links.iteritems():
-				#			for prev_path, mod_name, bin_name, src_rel in items:
-				#				if mod_path == mod_g:
-				#					src_path = join(mod_path, src_rel)
-				#					bin_path = join(args.prefix, "bin", bin_name)
-				#					# print "global", src_path, bin_path
-				#					if not exists(bin_path) or args.reinstall:
-				#						subprocess.call((sudo + "ln -snf '{0}' '{1}' && " + sudo + "chmod +x '{0}'").format(src_path, bin_path), shell=True)
-				#					# break
-				#	else:
-				#		nm_pkg_path = join(nm_path, mod_m)
-				#		print mod_g, nm_pkg_path, mod_m, args.base
-				#		if not exists(nm_pkg_path):
-				#			os.symlink(mod_g, nm_pkg_path)
-				## print "uniq", uniq_modules[(mod_m, mod_v)]
 		else:
 			install_recur(args.base, 0, args.base, args.dev)
 			finalize()
 
 			# clear the line
-			sys.stdout.write("\r" + " " * __line_size + "\r")
+			if not args.q:
+				sys.stdout.write("\r" + " " * __line_size + "\r")
 
-			#make bin links
+			# make bin links
 			with open(root_pkg_file, "rb") as root_src:
 				root_pkg_json = cjson.decode(root_src.read())
 				if root_pkg_json:
@@ -538,7 +515,8 @@ def main():
 						mk_binlinks(pkg_file, bin_base)
 
 			# walk again to print tree, not needed for functionality
-			install_recur(args.base, 0, args.base, args.dev, 1)
+			if not args.q:
+				install_recur(args.base, 0, args.base, args.dev, 1)
 
 			if args.dump:
 				walked.clear()
