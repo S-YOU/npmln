@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.6.1'
+__version__ = '0.6.2'
 
 __line_size = 0
 
@@ -108,7 +108,7 @@ def main():
 					excludes.append("node_modules/")
 				if not exists(tmp_file):
 					print "downloading", [mod, ver, pkg_path, tmp_file]
-					cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "npm/4.0.3 node/v7.1.0 linux x64" -sL %s > %s' % (url, tmp_file)
+					cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "yarn/0.18.1 npm/? node/v7.1.0 linux x64" -sL %s > %s' % (url, tmp_file)
 					cmd += " && mkdir -p %s && tar zxf %s -C %s --strip-components 1 --warning=no-unknown-keyword %s" % (
 						pkg_path, tmp_file, pkg_path, ''.join(" --exclude=%s" % x for x in excludes))
 					if args.no_cache:
