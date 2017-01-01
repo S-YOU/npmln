@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.6.2'
+__version__ = '0.6.3'
 
 __line_size = 0
 
@@ -28,6 +28,7 @@ def main():
 	parser.add_argument("-j", type=int, default=64, help="number of threads (%(default)s)")
 	parser.add_argument("--reinstall", action="store_true", default=False, help="reinstall specified module(s) regardless of link exists (%(default)s)")
 	parser.add_argument("--allow-node-modules", action="store_true", default=False, help="allow node_modules folder to be included in package (%(default)s)")
+	parser.add_argument("--excludes", nargs='+', default=[], help="excludes (%(default)s)")
 
 	parser.add_argument("--no-cache", action="store_true", default=False, help="no cache for downloaded tarballs (%(default)s)")
 	parser.add_argument("--cache-dir", default="/var/tmp/npmln-cache", help="cache folder for tarballs (%(default)s)")
@@ -313,6 +314,8 @@ def main():
 
 			for pair in pkgs.iteritems():
 				k, v = pair
+				if k in args.excludes:
+					continue
 				if v and '/' not in v:
 					vx = v.split("||")[-1].split(" - ")[-1].strip()
 					if vx:
@@ -511,6 +514,8 @@ def main():
 					if args.dev:
 						pkgs.update(root_pkg_json.get('devDependencies', {}))
 					for name, v in pkgs.iteritems():
+						if name in args.excludes:
+							continue
 						pkg_file = join('node_modules', name, 'package.json')
 						mk_binlinks(pkg_file, bin_base)
 
