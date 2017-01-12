@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.6.4'
+__version__ = '0.6.5'
 
 __line_size = 0
 
@@ -43,7 +43,7 @@ def main():
 	commands = args.commands
 	cmd0, cmdn = commands[0], commands[1:]
 	sudo = '' if args.no_sudo else 'sudo '
-	# print args
+	# print(args)
 
 	import sys
 	import os
@@ -109,14 +109,14 @@ def main():
 					excludes.append("node_modules/")
 				no_warning = '--warning=no-unknown-keyword' if sys.platform[:5] == 'linux' else ''
 				if not exists(tmp_file):
-					print "downloading", [mod, ver, pkg_path, tmp_file]
+					print("downloading", [mod, ver, pkg_path, tmp_file])
 					cmd = 'curl --compressed --connect-timeout 1 --retry 10 --retry-delay 0 -A "yarn/0.18.1 npm/? node/v7.1.0 linux x64" -sL %s > %s' % (url, tmp_file)
 					cmd += " && mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s %s" % (
 						pkg_path, tmp_file, pkg_path, no_warning, ''.join(" --exclude=%s" % x for x in excludes))
 					if args.no_cache:
 						cmd += " && rm -f %s" % tmp_file
 				else:
-					#print "cache:", [mod, ver, pkg_path, tmp_file]
+					#print("cache:", [mod, ver, pkg_path, tmp_file])
 					cmd = "mkdir -p %s && tar zxf %s -C %s --strip-components 1 %s %s" % (
 						pkg_path, tmp_file, pkg_path, no_warning, ''.join(" --exclude=%s" % x for x in excludes))
 				downloaded.add(tmp_file)
@@ -136,7 +136,7 @@ def main():
 			counter[0] += 1
 			pair = mod, ver_pattern
 			new_pkg_path = None
-			#print "\n", pair, "\n"
+			#print("\n", pair, "\n")
 
 			if mod[0] == "@":
 				mod = mod.replace('/', '%2f')
@@ -150,9 +150,10 @@ def main():
 				elif ver_pattern.endswith(".git"):
 					ver_pattern = ver_pattern[:-4] + "%s/archive/master.tar.gz"
 
-			#username/repo
+			#username/repo (optional hash #)
 			elif '/' in ver_pattern:
-				ver_pattern = 'http://github.com/' + ver_pattern + '/archive/master.tar.gz'
+				repo_path, branch = ver_pattern.split('#') if "#" in ver_pattern else (ver_pattern, "master")
+				ver_pattern = 'http://github.com/%s/archive/%s.tar.gz' % (repo_path, branch)
 
 			#http.*xxx.tar.gz
 			if ver_pattern.endswith("tar.gz"):
@@ -162,9 +163,9 @@ def main():
 				pkg_json = None
 				if uniq_modules.get(pair) is None:
 					uniq_modules[pair] = new_pkg_path
-				#print ["tar.gz", new_pkg_path]
+				#print(["tar.gz", new_pkg_path])
 			else:
-				# print mod, ver_pattern, mod_base, lvl
+				# print(mod, ver_pattern, mod_base, lvl)
 				u = urllib.urlopen("https://registry.yarnpkg.com/%s/%s" % (mod, ver_pattern or '*'))
 				pkg_content = u.read()
 				try:
@@ -178,12 +179,12 @@ def main():
 					if uniq_modules.get(pair) is None:
 						uniq_modules[pair] = new_pkg_path
 				else:
-					# print "no package path", [pkg_json, mod, ver_pattern]
+					# print("no package path", [pkg_json, mod, ver_pattern])
 					return errwrite("\nERR:npm pull: %r, invalid module?" % [mod, ver_pattern, pkg_json])
 				# errwrite(new_pkg_path, pkg_json["dist"]["tarball"])
-			#print new_pkg_path
+			#print(new_pkg_path)
 
-			#print "npmpull", [mod, ver_pattern, mod_base, lvl, prev_path]
+			#print("npmpull", [mod, ver_pattern, mod_base, lvl, prev_path])
 			is_new = not exists(new_pkg_path) or (cmdn and args.reinstall)
 			real_pair = mod, real_ver
 			if is_new:
@@ -196,7 +197,7 @@ def main():
 				pkg_scripts = pkg_json.get("scripts")
 				if pkg_scripts:
 					if "preinstall" in pkg_scripts:
-						# print "preinstall:", pkg_scripts["preinstall"],
+						# print("preinstall:", pkg_scripts["preinstall"],)
 						subprocess.call("cd %s && npm run preinstall" % new_pkg_path, shell=True)
 					if pkg_scripts and ("preinstall" in pkg_scripts or "install" in pkg_scripts or "postinstall" in pkg_scripts):
 						rebuilds[real_pair] = new_pkg_path, []
@@ -211,7 +212,7 @@ def main():
 				sub_pkg_path = os.path.join(prev_path, 'node_modules', mod)
 				relinks[pair].append((sub_pkg_path, lvl))
 
-			# print "is_new", is_new, mod, ver_pattern, new_pkg_path, uniq_modules
+			# print("is_new", is_new, mod, ver_pattern, new_pkg_path, uniq_modules)
 
 			if is_new:
 				if pair not in uniq_modules:
@@ -240,7 +241,7 @@ def main():
 			elif t == '<':
 				if ver3 < p3: return True
 			else:
-				print "unknown", pattern, ver
+				print("unknown", pattern, ver)
 
 # 		errwrite(semver_diff(rc_semver.findone("1.1"), rc_semver.findone("1.11.0")))
 # 		sys.exit()
@@ -250,6 +251,12 @@ def main():
 				# tree(lvl, False, "unlink..", link, realpath(link), src)
 				os.unlink(link)
 			if not exists(link):
+				link_dir = os.path.dirname(link)
+				try:
+					if not exists(link_dir):
+						os.mkdir(link_dir)
+				except:
+					errwrite("\nERR:mkdir failed on: %s" % link_dir)
 				try:
 					os.symlink(src, link)
 					return True
@@ -297,12 +304,12 @@ def main():
 				all_pkgs.update(pkg_json["optionalDependencies"])
 
 			if not pkgs:
-				# print fpath, "\tno deps"
+				# print(fpath, "\tno deps")
 				return
 
 			if flags & 1:
 				if lvl == 0:
-					# print "\t" * lvl, fpath, pkgs
+					# print("\t" * lvl, fpath, pkgs)
 					errwrite(" " + pkg_json["name"])
 			lvl += 1
 
@@ -331,7 +338,7 @@ def main():
 							elif vx[0].isdigit():
 								vx = '~' + vx
 						# if v != vx:
-						# 	print "\n", [v, vx], '\n'
+						# 	print("\n", [v, vx], '\n')
 						v = vx
 						pair = k, v
 
@@ -343,7 +350,7 @@ def main():
 					continue
 
 				mod_base = join(args.pkg_dir, k)
-				# print "\t" * lvl, mod_base
+				# print("\t" * lvl, mod_base)
 
 				if not exists(mod_base):
 					if pair not in uniq_modules:
@@ -433,7 +440,6 @@ def main():
 			# rebuild all native modules
 			errwrite("INFO:running scripts")
 			builds = rebuilds.items()
-			# print rebuilds
 			def rebuild_fn():
 				while builds:
 					pair, (pkg_path, pkg_cmds) = builds.pop()
@@ -452,7 +458,9 @@ def main():
 			errwrite("INFO:done running scripts")
 
 		def mk_binlinks(pkg_file, bin_base, mod_path=None):
-			if not exists(pkg_file): print "404", pkg_file; return
+			if not exists(pkg_file):
+				print("404", pkg_file)
+				return
 			with open(pkg_file, "rb") as src:
 				pkg_json = cjson.decode(src.read())
 				if not pkg_json or "bin" not in pkg_json: return
@@ -532,7 +540,7 @@ def main():
 
 	else:
 		parser.print_help()
-		print "Unknown command '%s'" % cmd0
+		print("Unknown command '%s'" % cmd0)
 
 if __name__ == '__main__':
 	main()
