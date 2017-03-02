@@ -18,7 +18,7 @@ setup(
 	url='https://github.com/S-YOU/npmln',
 	download_url='https://github.com/S-YOU/npmln/tarball/master',
 	ext_modules=[ext],
-	install_requires=['xxhash', 'python-cjson'],
+	install_requires=['python-cjson'],
 	py_modules=['npmln'],
 	entry_points={
 		"console_scripts": [

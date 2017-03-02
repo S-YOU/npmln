@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf8
 
-__version__ = '0.6.5'
+__version__ = '0.6.6'
 
 __line_size = 0
 
@@ -64,7 +64,7 @@ def main():
 		sys.stderr.flush()
 
 	if "install".startswith(cmd0):
-		import xxhash
+		import hashlib
 		import subprocess
 		import rc_semver
 		import urllib
@@ -157,7 +157,7 @@ def main():
 
 			#http.*xxx.tar.gz
 			if ver_pattern.endswith("tar.gz"):
-				real_ver = xxhash.xxh64(ver_pattern).hexdigest()
+				real_ver = hashlib.sha1(ver_pattern).hexdigest()
 				new_pkg_path = join(mod_base, real_ver)
 				tarball_path = ver_pattern
 				pkg_json = None
@@ -474,7 +474,7 @@ def main():
 						src_path = join(mod_path, fpath.replace("./", ""))
 						if not exists(bin_path) or args.reinstall:
 							subprocess.call((sudo + "ln -snf '{0}' '{1}' && " + sudo + "chmod +x '{0}'").format(src_path, bin_path), shell=True)
-					# elif name:
+					# else:
 					# 	src_path = join('..', name, fpath.replace("./", ""))
 					# 	if islink(bin_path) and not realpath(bin_path).endswith(src_path):
 					# 		os.unlink(bin_path)
@@ -482,8 +482,6 @@ def main():
 					# 		os.symlink(src_path, bin_path)
 					# 		if exists(bin_path):
 					# 			os.chmod(bin_path, 0o755)
-					# else:
-					# 	print 'unsupported', pkg_file, bin_base, mod_path, name
 
 		if not args.g:
 			root_pkg_file = join(args.base, 'package.json')
