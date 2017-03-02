@@ -474,13 +474,16 @@ def main():
 						src_path = join(mod_path, fpath.replace("./", ""))
 						if not exists(bin_path) or args.reinstall:
 							subprocess.call((sudo + "ln -snf '{0}' '{1}' && " + sudo + "chmod +x '{0}'").format(src_path, bin_path), shell=True)
-					else:
-						src_path = join('..', name, fpath.replace("./", ""))
-						if islink(bin_path) and not realpath(bin_path).endswith(src_path):
-							os.unlink(bin_path)
-						if not exists(bin_path):
-							os.symlink(src_path, bin_path)
-							os.chmod(bin_path, 0o755)
+					# elif name:
+					# 	src_path = join('..', name, fpath.replace("./", ""))
+					# 	if islink(bin_path) and not realpath(bin_path).endswith(src_path):
+					# 		os.unlink(bin_path)
+					# 	if not exists(bin_path):
+					# 		os.symlink(src_path, bin_path)
+					# 		if exists(bin_path):
+					# 			os.chmod(bin_path, 0o755)
+					# else:
+					# 	print 'unsupported', pkg_file, bin_base, mod_path, name
 
 		if not args.g:
 			root_pkg_file = join(args.base, 'package.json')
